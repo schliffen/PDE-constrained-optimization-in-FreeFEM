@@ -1,0 +1,126 @@
+//
+// Interior point methods for function spaces
+// The project of solving PDE-Constraint optimization problems
+//*******************************************
+//
+// inclutions
+//include "Mesh.idp"
+border b0(t=0,1) { x= 2*t; y= 0 ;}
+border b1(t=0,1) { x=2; y= 2*t ;}
+border b2(t=0,1) { x= 2-2*t; y=2;}
+border b3(t=0,1) { x= 0; y= 2-2*t;}
+//
+mesh Th = buildmesh( b0(15) + b1(15) + b2(15)+ b3(15)); // + a4(20) + a5(20) + a6(20));
+//
+// FE-spaces
+//
+fespace Vh(Th,P1);
+fespace Wh(Th,P2);
+fespace L2(Th,P0);
+//
+// defining applied functions
+// Armijo line search method
+/*
+func real armijo(real[int] &u, real[int] &y, real[int] &p, real[int] &z,real & alpha, real[int,int] & lap, real[int,int] & Q )
+{
+// middle matrices
+real[int] L1 = p'*lap, U1=u'*Q;
+real[int] U2 = y'*lap-z'*lap; 
+  real[int] uinc, yinc; 
+  real countarm=0,cost2;
+  real gradcost = L1*p ;// L1*p + U1*u;//int2d(Th)((p+alpha*u)^2);
+  real cost1 = 1/2*U2*(y-z) + alpha/2* U1*u; //1/2*int2d(Th)((y-z)^2) + alpha/2*int2d(Th)(u^2);
+  real beta=1; real arm=10^-5;
+  while (arm>-10^-4*beta*gradcost)
+  {
+    beta = 1/2^countarm;
+    uinc = u - beta*(p + alpha*u);
+    yinc = lap^-1*uinc;
+    cost2 = 1/2 * int2d(Th)((yinc-z))^2 + alpha/2*int2d(Th)(uinc^2);
+    arm = cost2 - cost1;
+    countarm = countarm + 1;
+  };
+  arm = beta;
+  return arm;
+}
+*/
+//*******************************************
+// defining variables and parameters
+//
+//         initial merit function weighting of constraint residuals
+int beta=.5;
+int alpha = 0.5;
+// initial barrier term
+
+// ********************************************
+// Creating the required matrices
+// 1. Application of Gradient Method
+// for simplicity get the problem to be
+// ------------------------------------------------------
+// Loading mesh
+Vh v, y, yd=1,p; 
+L2 u=0,uold;
+
+//
+// constructing weak form of Laplacian
+//
+problem laplace(y,v) = int2d(Th)(dx(y)*dx(v) + dy(y)*dy(v))
+                       - int2d(Th)(u*v)+ on(1,2,3,4, y=0);
+problem adjlaplace(p,v) = int2d(Th)(dx(p)*dx(v) + dy(p)*dy(v))
+                          - int2d(Th)((y-yd)*v);
+// printing the results
+cout<<y.n<<" size of y, size of u"<<u.n<<endl;
+real res = 1, iter = 0, tol = 10^-3,residual=0; 
+// We need here an exchange matrix
+//real[int,int] 
+laplace;
+
+while (res>= tol & iter<3)
+{
+  iter = iter + 1;
+//  laplace;
+//  adjlaplace; 
+// 
+  beta =0.1;
+//  beta =  armijo(u[], y[], p[], yd[], alpha, L, Q);
+//  uold = u;
+//  u = - beta*p;// - 0.25*uold;
+  residual = int2d(Th)(u*p);//((u - uold)*(u - uold));
+cout<<"residual: " <<residual<<endl;
+} 	 
+
+/*
+problem laplace(y,v) = int2d(Th)(dx(y)*dx(v) + dy(y)*dy(v));
+varf mass(y,v) = int2d(Th)(y*v);
+varf rhs (u,v) = int2d(Th) (u*v);
+matrix L = stiff(Vh,Vh);
+matrix M = mass(Vh,Vh);
+matrix B = rhs(L2,Vh);
+matrix Q = rhs(L2,L2);
+matrix IKU=interpolate(Vh,L2,inside=1);
+real[int] fu = rhs(0,Vh),y1,y2,y3;
+// printing the results
+cout<<y.n<<" , "<<L.m<<endl;
+real res = 1, iter = 0, tol = 10^-3; 
+// We need here an exchange matrix
+//real[int,int] 
+while (res>= tol & iter<2)
+{
+  iter = iter + 1;
+ // fu1 = IKU'*fu; 
+  y[] = L^-1*fu; y1=y-yd;
+  p[] = L^-1*y1; 
+//  p[] = ;  
+  beta =0.1;
+//  beta =  armijo(u[], y[], p[], yd[], alpha, L, Q);
+  uold = u;
+  y1 = IKU*p[];y2=IKU*uold[];
+  y3=alpha*y1+alpha*y2;
+  u[] = uold[] - y3 ;
+int  residual = int2d(Th)(u - uold);
+} 	
+*/
+ 
+//
+//[m,n]=size(A);
+cout<<"Thats OK "<<endl; 
