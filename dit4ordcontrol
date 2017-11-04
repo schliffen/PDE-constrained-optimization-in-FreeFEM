@@ -1,0 +1,205 @@
+//ofstream object("aliopt.obj");
+//ofstream grad("aliopt.grad");
+//
+// string save="maliopt"; //Prefix of backup files
+// loadings
+load "ff-Ipopt"
+load "Morley"
+//definig macroes
+
+macro biGrad(v) ([dxx(v), dyy(v)])//
+
+//parameter definitions
+real n=1; // for meshing dimansion
+real m;
+real alpha=2,beta=.2;
+real a=2.001;
+int maxit=5;
+// definig a border
+//mesh Th=square(5,2);
+border C1 (t=0,1){x=t;y=0;label=1;};
+border C2 (t=0,1){x=1;y=t;label=2;};
+border C3 (t=1,0){x=t;y=1;label=3;};
+border C4 (t=1,0){x=0;y=t;label=4;};
+// Generating mesh
+mesh Th = buildmesh(C1(n*10) +C2(n*10) + C3(n*10) + C4(n*10));
+//finite element space
+fespace Uh(Th,P2Morley);
+fespace Vh(Th,P2);
+fespace Zh(Th,P1);
+//Uh u;
+Vh u,p,uh,vh,pu2,F2,Te;
+Zh uc,zh,F3,pu1;
+//Definig functions
+func rhs =(y>0.1)*(y<0.2) + (x>0.1)*(x<0.2);
+func ud  = ((x-.5)^2+(y-.5)^2<.01);
+//func real f(real x1) {
+//f= (y>0.001)*(y<0.1);
+//return f;
+//};
+//cout<<"the value of f"<< f<<endl;
+//Zh f=f;
+//defining functions ---------------------------
+// in objective function and derivative
+//Vh fx = ((y>0.001)*(y<0.1))-((y<-0.001)*(y>-0.1)) ;
+/*func real g(real & x1){
+Zh g= a*(x1-f)^2;
+return g ;
+};
+func real dg(real & x1){
+Zh r=(2*a*(x1-f));
+return r;
+};
+func real ddg(real & x1){
+Zh r= 2*a;
+return r;
+};*/
+//---------------------------------------------
+//func real[int] Dj(real[int] & x1){
+//Dj = int2d(Th) ((u - f)*du);
+//return Dj;
+//};
+// the objective function
+/*func real J(real & x1){
+Zh J = int2d(Th)(g(x1));
+return J;
+};*/
+//make objective function to vanishe on the boundary
+/*varf vCl(u,v) = on(1,2,3,4,u=1);
+Zh Cl;
+// 0 and tgv
+Cl[]= vCl(0,Vh,tgv=1);
+real tgv=Cl[].max;
+Cl[] = -Cl[]; Cl[] += tgv; Cl[] /=tgv;
+*/
+//nabla^2 objective function
+//real r=int2d(Th)(f( dx(u)*dx(u) + dy(u)*dy(u) ) - b*u) ;
+// Definig the problem  
+varf stif(uh,vh) = int2d(Th) (alpha*biGrad(u)'*biGrad(vh))
+                 + int2d(Th) (beta*uh*vh)
+//               - int2d(Th)(rhs*vh)
+                 + on (1,2,3,4,uh=0) ;
+varf vrhs(zh,vh)    = int2d(Th)(zh*vh) + int2d(Th)(rhs*vh);
+varf smas(uh,vh)    = int2d(Th)(beta*uh*vh) + on (1,2,3,4,uh=0);
+varf cmas(zh,vh)    = int2d(Th)(zh*vh);
+varf src(unused,vh) = int2d(Th)(rhs*vh)     + on(1,2,3,4,unused=0);
+
+//Stablishing Newton-CG method for optimization 
+int iter=0;
+//while(iter<1) {
+//step 1: getting initial solution
+//construction of matrices
+matrix K =stif(Vh,Vh,solver=CG);
+matrix M =smas(Vh,Vh,solver=CG);
+matrix Q =vrhs(Zh,Vh);
+matrix U =cmas(Zh,Vh);
+matrix CO=vrhs(Zh,Zh,solver=CG);
+Zh F1; F1[] = src(0,Zh);
+//-----Interpolating for proper matrices
+matrix IKU=interpolate(Vh,Zh,inside=1);
+//cout<<"degree of dimansion IKU:  "<<IKU.n<< ","<<IKU.m<<endl;
+//matrix CC = IKU*CO;
+//cout<<"degree of dimansion CC:   "<<K.n<< ","<<K.m<<endl;
+//adopting the vectors:
+//-----Starting the iteration related to deterministic case-------------------------
+uc[]=1;
+for (int j=0; j<maxit;j++){  
+//cout<<"degree of dimansion F2[]:   "<<F2[].n<<","<<CC.m<<endl;
+//Vh wh; wh[] = CC*F[];
+//cout<<" degree of dimansion wh[]:  "<<wh[].n<< "," <<endl;
+//Vh F1 = F;
+//Vh F;   F[] = F1[];
+//-------------------------------------------------
+//step 2: solving the state equation
+//cout<<"size of matrices "<<K.m<<M.m<<endl;
+F2[]=Q*uc[];
+set(K,solver=CG);
+u[] = K^-1*F2[];
+
+// Step 3: Solving the adjoint system
+// i) computing the rhs
+      real[int]  prhs = -int2d(Th)(u-ud);
+                pu2[] = prhs;
+p[] = K^-1*pu2[];
+// Step 4: Solving to obtain the control!
+//cout<<"exploting the size of matrices: "<<U.n <<U.m<<p[].n<<endl;
+F3[] = U'*p[];
+uc[] = CO^-1*F3[];
+}; // end of the deterministic iteration loop ---------------------------------------
+iter +=1;
+//};
+plot(uc, wait=true,cmm=" The control ");
+cout<<"this is the iter : "<<U.n<<U.m<<endl;
+//pu2=su;
+
+//end while 
+// creating the giant matrix : 
+//real[int,int] aaa(2,3); cout<<aaa.n<<aaa.m<<endl; 
+
+// .n : rows, .m : collumns 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* the preconditioner function
+func real[int] C(real[int] & x)
+{
+real[int] u(x.n);
+u=Amass*x;
+x = Alapˆ-1*u;
+x = x .* Cl[];
+return x;
+}*/
+/* Application of pCG method for solving dJ =0: 
+verbosity=5;
+int conv=0;
+real eps=1e-6;
+for (int i=0;i<20;i++)
+{
+conv=NLCG(dJ,u[],nbiter=10,precon=C,veps=eps);
+if (conv) break;
+//
+//
+if converge break loop
+alpha=df( dx(u)*dx(u) + dy(u)*dy(u) ); //
+recompute alpha optimization
+Alap = alap(Vh,Vh,solver=Cholesky,factorize=1);
+cout << " restart with new preconditionner " << conv << " eps =" << eps <<
+endl;
+}
+*/
+//solving the problem
+// Newton method 
+/*
+for (int i=0;i<100;i++)
+{
+alpha = df( dx(u)*dx(u) + dy(u)*dy(u) ) ;
+dalpha = ddf( dx(u)*dx(u) + dy(u)*dy(u) ) ;
+v[]= vdJ(0,Vh);
+real res= v[]'*v[];
+cout << i << " residuˆ2 = " << res << endl;
+// df
+if( res< 1e-12) break;
+matrix H= vhJ(Vh,Vh,factorize=1,solver=LU);
+w[]=Hˆ-1*v[];
+u[] -= w[];
+103
+//
+}*/
+/*
+matrix K= [Whatever you want];
+        ofstream fout("/tmp/matrixK.dat");
+        fout << K;
+*/
